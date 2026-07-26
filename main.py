@@ -102,7 +102,6 @@ def get_overseas_news(ticker, count=2):
         news = yf.Ticker(ticker).news or []
         titles = []
         for n in news[:count]:
-            # yfinance 버전에 따라 구조가 'title' 또는 'content'.'title' 로 다를 수 있음
             title = n.get("title") or n.get("content", {}).get("title")
             if title:
                 titles.append(title)
@@ -131,7 +130,7 @@ def refresh_kakao_token():
     res.raise_for_status()
     data = res.json()
     access_token = data["access_token"]
-    new_refresh_token = data.get("refresh_token")  # 갱신 임박 시에만 내려옴
+    new_refresh_token = data.get("refresh_token")
 
     if new_refresh_token:
         print("리프레시 토큰이 갱신되었습니다. Secret 업데이트를 시도합니다.")
@@ -164,7 +163,6 @@ def update_github_secret(name, value):
 # 5. 카카오 메시지 전송 (200자 제한 -> 여러 통으로 분할)
 # ---------------------------------------------------------------------------
 def chunk_text(lines, limit=KAKAO_TEXT_LIMIT):
-    """줄 단위 리스트를 limit자 이하의 덩어리(chunk) 여러 개로 묶음"""
     chunks = []
     current = ""
     for line in lines:
@@ -196,11 +194,9 @@ def send_kakao_memo(access_token, text):
 # ---------------------------------------------------------------------------
 # 6. 메인 로직
 # ---------------------------------------------------------------------------
-def build_report_lines(portfolio):
-    lines = [f"📈 {datetime.now().strftime('%Y-%m-%d')} 아침 포트폴리오 브리핑"]
-
-    lines.append("\n[국내]")
-    for item in portfolio.get("domestic", []):
+def build_domestic_lines(items):
+    lines = ["[국내]"]
+    for item in items:
         price_info = get_domestic_price(item["ticker"])
         if not price_info:
             lines.append(f"{item['name']}: 가격 조회 실패")
@@ -213,9 +209,12 @@ def build_report_lines(portfolio):
         lines.append(line)
         for news in get_domestic_news(item["name"]):
             lines.append(f"  - {news}")
+    return lines
 
-    lines.append("\n[해외]")
-    for item in portfolio.get("overseas", []):
+
+def build_overseas_lines(items):
+    lines = ["[해외]"]
+    for item in items:
         price_info = get_overseas_price(item["ticker"])
         if not price_info:
             lines.append(f"{item['name']}: 가격 조회 실패")
@@ -225,9 +224,30 @@ def build_report_lines(portfolio):
         if item.get("quantity") and item.get("avg_price"):
             profit_pct = (price_info["price"] - item["avg_price"]) / item["avg_price"] * 100
             line += f" | 수익률 {profit_pct:+.2f}%"
+        if item.get("daily_buy_krw"):
+            line += f" | 매일 {item['daily_buy_krw']:,}원 자동매수"
         lines.append(line)
         for news in get_overseas_news(item["ticker"]):
             lines.append(f"  - {news}")
+    return lines
+
+
+def build_report_lines(portfolio):
+    lines = [f"📈 {datetime.now().strftime('%Y-%m-%d')} 아침 포트폴리오 브리핑"]
+
+    for account in portfolio.get("accounts", []):
+        broker = account.get("broker", "계좌")
+        lines.append(f"\n■ {broker}")
+
+        domestic = account.get("domestic", [])
+        if domestic:
+            lines.append("")
+            lines.extend(build_domestic_lines(domestic))
+
+        overseas = account.get("overseas", [])
+        if overseas:
+            lines.append("")
+            lines.extend(build_overseas_lines(overseas))
 
     return lines
 
@@ -243,7 +263,7 @@ def main():
     for idx, chunk in enumerate(chunks, start=1):
         prefix = f"({idx}/{total})\n" if total > 1 else ""
         send_kakao_memo(access_token, prefix + chunk)
-        time.sleep(1)  # 연속 전송 시 순서 보장을 위한 짧은 대기
+        time.sleep(1)
 
     print("완료")
 
