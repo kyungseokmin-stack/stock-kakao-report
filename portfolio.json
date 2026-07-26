@@ -1,33 +1,27 @@
 {
-  "_설명": "여기에 실제 보유 종목으로 채워주세요. quantity/avg_price는 수익률 계산용(선택, 없으면 0으로 두면 수익률 없이 가격/뉴스만 보고)",
-
-  "domestic": [
+  "accounts": [
     {
-      "name": "삼성전자",
-      "ticker": "005930",
-      "quantity": 10,
-      "avg_price": 70000
+      "broker": "토스증권",
+      "domestic": [
+        {"name": "명신산업", "ticker": "009900", "quantity": 14, "avg_price": 10996}
+      ],
+      "overseas": [
+        {"name": "Palantir", "ticker": "PLTR", "quantity": 2.492468, "avg_price": 138.03, "daily_buy_krw": 5000},
+        {"name": "Tesla", "ticker": "TSLA", "quantity": 0.976496, "avg_price": 378.14, "daily_buy_krw": 4000},
+        {"name": "Alphabet A", "ticker": "GOOGL", "quantity": 0.266024, "avg_price": 348.02, "daily_buy_krw": 4000},
+        {"name": "Vanguard S&P 500 ETF", "ticker": "VOO", "quantity": 0.114856, "avg_price": 684.83, "daily_buy_krw": 5000},
+        {"name": "Invesco QQQ", "ticker": "QQQ", "quantity": 0.044021, "avg_price": 713.51, "daily_buy_krw": 2000}
+      ]
     },
     {
-      "name": "SK하이닉스",
-      "ticker": "000660",
-      "quantity": 5,
-      "avg_price": 180000
-    }
-  ],
-
-  "overseas": [
-    {
-      "name": "Apple",
-      "ticker": "AAPL",
-      "quantity": 3,
-      "avg_price": 190.0
-    },
-    {
-      "name": "NVIDIA",
-      "ticker": "NVDA",
-      "quantity": 2,
-      "avg_price": 120.0
+      "broker": "삼성증권",
+      "domestic": [
+        {"name": "TYM", "ticker": "002900", "quantity": 133, "avg_price": 6237},
+        {"name": "삼성전자", "ticker": "005930", "quantity": 11, "avg_price": 272234},
+        {"name": "KODEX 2차전지산업", "ticker": "305720", "quantity": 120, "avg_price": 17552},
+        {"name": "KODEX AI전력핵심설비", "ticker": "487240", "quantity": 74, "avg_price": 49810}
+      ],
+      "overseas": []
     }
   ]
 }
