@@ -1,0 +1,33 @@
+{
+  "_설명": "여기에 실제 보유 종목으로 채워주세요. quantity/avg_price는 수익률 계산용(선택, 없으면 0으로 두면 수익률 없이 가격/뉴스만 보고)",
+
+  "domestic": [
+    {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "quantity": 10,
+      "avg_price": 70000
+    },
+    {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "quantity": 5,
+      "avg_price": 180000
+    }
+  ],
+
+  "overseas": [
+    {
+      "name": "Apple",
+      "ticker": "AAPL",
+      "quantity": 3,
+      "avg_price": 190.0
+    },
+    {
+      "name": "NVIDIA",
+      "ticker": "NVDA",
+      "quantity": 2,
+      "avg_price": 120.0
+    }
+  ]
+}
