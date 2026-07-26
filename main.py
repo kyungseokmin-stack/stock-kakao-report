@@ -116,6 +116,7 @@ def get_overseas_news(ticker, count=2):
 # ---------------------------------------------------------------------------
 def refresh_kakao_token():
     rest_api_key = os.environ["KAKAO_REST_API_KEY"]
+    client_secret = os.environ["KAKAO_CLIENT_SECRET"]
     refresh_token = os.environ["KAKAO_REFRESH_TOKEN"]
 
     res = requests.post(
@@ -123,6 +124,7 @@ def refresh_kakao_token():
         data={
             "grant_type": "refresh_token",
             "client_id": rest_api_key,
+            "client_secret": client_secret,
             "refresh_token": refresh_token,
         },
         timeout=10,
