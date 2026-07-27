@@ -102,6 +102,7 @@ def get_overseas_news(ticker, count=2):
         news = yf.Ticker(ticker).news or []
         titles = []
         for n in news[:count]:
+            # yfinance 버전에 따라 구조가 'title' 또는 'content'.'title' 로 다를 수 있음
             title = n.get("title") or n.get("content", {}).get("title")
             if title:
                 titles.append(title)
@@ -132,7 +133,7 @@ def refresh_kakao_token():
     res.raise_for_status()
     data = res.json()
     access_token = data["access_token"]
-    new_refresh_token = data.get("refresh_token")
+    new_refresh_token = data.get("refresh_token")  # 갱신 임박 시에만 내려옴
 
     if new_refresh_token:
         print("리프레시 토큰이 갱신되었습니다. Secret 업데이트를 시도합니다.")
@@ -165,6 +166,7 @@ def update_github_secret(name, value):
 # 5. 카카오 메시지 전송 (200자 제한 -> 여러 통으로 분할)
 # ---------------------------------------------------------------------------
 def chunk_text(lines, limit=KAKAO_TEXT_LIMIT):
+    """줄 단위 리스트를 limit자 이하의 덩어리(chunk) 여러 개로 묶음"""
     chunks = []
     current = ""
     for line in lines:
@@ -265,7 +267,7 @@ def main():
     for idx, chunk in enumerate(chunks, start=1):
         prefix = f"({idx}/{total})\n" if total > 1 else ""
         send_kakao_memo(access_token, prefix + chunk)
-        time.sleep(1)
+        time.sleep(1)  # 연속 전송 시 순서 보장을 위한 짧은 대기
 
     print("완료")
 
