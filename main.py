@@ -108,10 +108,23 @@ def get_domestic_news(name, display=2):
         res = requests.get(url, headers=headers, params=params, timeout=10)
         res.raise_for_status()
         items = res.json().get("items", [])
-        return [clean_html(i["title"]) for i in items]
+        return [
+            {"title": clean_html(i["title"]), "url": i.get("link") or i.get("originallink") or "#"}
+            for i in items
+        ]
     except Exception as e:
         print(f"[뉴스 오류] {name}: {e}")
         return []
+
+
+def translate_to_korean(text):
+    """영문 뉴스 제목을 한글로 번역 (실패 시 원문 그대로 반환)"""
+    try:
+        from deep_translator import GoogleTranslator
+        return GoogleTranslator(source="auto", target="ko").translate(text)
+    except Exception as e:
+        print(f"[번역 오류] {e}")
+        return text
 
 
 def get_overseas_news(ticker, count=2):
@@ -119,12 +132,19 @@ def get_overseas_news(ticker, count=2):
 
     try:
         news = yf.Ticker(ticker).news or []
-        titles = []
+        results = []
         for n in news[:count]:
-            title = n.get("title") or n.get("content", {}).get("title")
+            content = n.get("content", {})
+            title = n.get("title") or content.get("title")
+            url = (
+                n.get("link")
+                or content.get("canonicalUrl", {}).get("url")
+                or content.get("clickThroughUrl", {}).get("url")
+                or "#"
+            )
             if title:
-                titles.append(title)
-        return titles
+                results.append({"title": translate_to_korean(title), "url": url})
+        return results
     except Exception as e:
         print(f"[뉴스 오류] {ticker}: {e}")
         return []
@@ -211,7 +231,9 @@ def build_html(watchlist):
         pct = info["pct"] if info else 0
         color = "#d92626" if pct >= 0 else "#1a63d1"
         sign = "+" if pct >= 0 else ""
-        news_html = "".join(f"<li>{n}</li>" for n in news) or "<li>관련 뉴스 없음</li>"
+        news_html = "".join(
+            f'<li><a href="{n["url"]}" target="_blank" rel="noopener">{n["title"]}</a></li>' for n in news
+        ) or "<li>관련 뉴스 없음</li>"
         rows.append(f"""
         <div class="card">
           <div class="row">
@@ -238,6 +260,8 @@ def build_html(watchlist):
   .name {{ font-size:16px; }}
   .price {{ font-size:15px; white-space:nowrap; }}
   .news {{ margin:0; padding-left:18px; font-size:13px; color:#555; line-height:1.6; }}
+  .news a {{ color:#555; text-decoration:none; }}
+  .news a:hover {{ text-decoration:underline; }}
 </style>
 </head>
 <body>
