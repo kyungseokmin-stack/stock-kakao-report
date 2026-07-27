@@ -13,6 +13,8 @@
   .row { display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom:8px; gap:12px; }
   .name { font-size:16px; }
   .price { font-size:15px; white-space:nowrap; }
+  .badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .badge { background:#f0f0f3; color:#444; font-size:11px; padding:4px 8px; border-radius:20px; white-space:nowrap; }
   .news { margin:0; padding-left:18px; font-size:13px; color:#555; line-height:1.6; }
   .news a { color:#555; text-decoration:none; }
   .news a:hover { text-decoration:underline; }
@@ -20,55 +22,62 @@
 </head>
 <body>
   <h1>📈 오늘의 관심 종목</h1>
-  <div class="updated">2026-07-27 업데이트 · 시세/뉴스만 표시됩니다</div>
+  <div class="updated">2026-07-27 업데이트 · 시세/지표/뉴스만 표시됩니다 (매매 조언 아님)</div>
   
         <div class="card">
           <div class="row">
             <span class="name">명신산업</span>
             <span class="price">6,820원 <span style="color:#1a63d1">(-1.45%)</span></span>
           </div>
+          <div class="badges"><span class="badge">MA5 6,842</span><span class="badge">MA20 7,150</span><span class="badge">MA60 9,088</span><span class="badge">거래량 20일평균대비 50%</span><span class="badge">볼린저밴드 내 위치 26%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 12,674~13,427원</span></div>
           <ul class="news"><li><a href="https://www.pinpointnews.co.kr/news/articleView.html?idxno=470497" target="_blank" rel="noopener">체질 개선 결실 보는 성호전자… 전동화 부품 라인업 확대에 '청신호'</a></li><li><a href="https://www.jemin.com/news/articleView.html?idxno=840523" target="_blank" rel="noopener">이어도로 가는 배, 점에서 나서 점으로 간다.</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">Palantir</span>
-            <span class="price">$122.92 <span style="color:#1a63d1">(-0.36%)</span></span>
+            <span class="price">$126.22 <span style="color:#d92626">(+2.68%)</span></span>
           </div>
+          <div class="badges"><span class="badge">MA5 125.95</span><span class="badge">MA20 128.56</span><span class="badge">MA60 132.56</span><span class="badge">거래량 20일평균대비 4%</span><span class="badge">볼린저밴드 내 위치 40%</span><span class="badge">일목균형표 구름대 안</span><span class="badge">매물대 $133.96~$139.30</span></div>
           <ul class="news"><li><a href="https://finance.yahoo.com/markets/stocks/articles/michael-burry-expands-bets-against-124330196.html" target="_blank" rel="noopener">Michael Burry, 주요 칩 주식에 대한 투자 확대</a></li><li><a href="https://finance.yahoo.com/markets/stocks/articles/michael-burry-goes-bigger-nvidia-122650155.html" target="_blank" rel="noopener">Michael Burry는 Nvidia, Micron, Palantir 및 Tesla Shorts에서 더 큰 성과를 거두었습니다.</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">Tesla</span>
-            <span class="price">$313.03 <span style="color:#1a63d1">(-2.08%)</span></span>
+            <span class="price">$311.87 <span style="color:#1a63d1">(-0.37%)</span></span>
           </div>
-          <ul class="news"><li><a href="https://finance.yahoo.com/markets/live/earnings-live-astrazeneca-stock-rises-to-kick-off-a-busy-earnings-week-115207214.html" target="_blank" rel="noopener">실시간 수익: AstraZeneca 주가 상승으로 바쁜 실적 주간 시작</a></li><li><a href="https://finance.yahoo.com/markets/stocks/articles/michael-burry-expands-bets-against-124330196.html" target="_blank" rel="noopener">Michael Burry, 주요 칩 주식에 대한 투자 확대</a></li></ul>
+          <div class="badges"><span class="badge">MA5 339.51</span><span class="badge">MA20 385.33</span><span class="badge">MA60 401.86</span><span class="badge">거래량 20일평균대비 7%</span><span class="badge">볼린저밴드 내 위치 -4%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 $391.91~$405.25</span></div>
+          <ul class="news"><li><a href="https://finance.yahoo.com/video/trump-tariffs-inflation-could-mean-130000339.html" target="_blank" rel="noopener">7월 회의를 앞두고 새로운 트럼프 관세와 인플레이션이 연준에 어떤 의미를 가질 수 있는가?</a></li><li><a href="https://finance.yahoo.com/markets/live/earnings-live-astrazeneca-stock-rises-to-kick-off-a-busy-earnings-week-115207214.html" target="_blank" rel="noopener">실시간 수익: AstraZeneca 주가 상승으로 바쁜 실적 주간 시작</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">Alphabet A</span>
-            <span class="price">$319.74 <span style="color:#d92626">(+0.65%)</span></span>
+            <span class="price">$326.73 <span style="color:#d92626">(+2.18%)</span></span>
           </div>
-          <ul class="news"><li><a href="https://finance.yahoo.com/markets/article/why-microsoft-meta-and-amazon-earnings-could-crush-the-sp-500-123600155.html" target="_blank" rel="noopener">마이크로소프트, 메타, 아마존의 수익이 S&P 500을 무너뜨릴 수 있는 이유</a></li><li><a href="https://finance.yahoo.com/markets/article/4-big-tech-earnings-reports-a-fed-meeting-and-100-oil-its-the-busiest-week-of-the-quarter-100000261.html" target="_blank" rel="noopener">4대 기술 수익 보고서, 연준 회의, 석유 100달러: 이번 분기 중 가장 바쁜 주입니다.</a></li></ul>
+          <div class="badges"><span class="badge">MA5 330.68</span><span class="badge">MA20 351.66</span><span class="badge">MA60 367.85</span><span class="badge">거래량 20일평균대비 7%</span><span class="badge">볼린저밴드 내 위치 8%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 $351.57~$360.04</span></div>
+          <ul class="news"><li><a href="https://finance.yahoo.com/technology/article/why-another-shocking-meta-capex-number-may-keep-the-stock-underwater-130420154.html" target="_blank" rel="noopener">또 다른 충격적인 Meta capex 수치가 주식을 수렁에 빠뜨릴 수 있는 이유</a></li><li><a href="https://finance.yahoo.com/video/zynga-changed-gaming-forever-farmville-100000491.html" target="_blank" rel="noopener">Zynga가 FarmVille을 통해 게임을 영원히 변화시킨 방법: Mark Pincus</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">Vanguard S&P 500 ETF</span>
-            <span class="price">$679.14 <span style="color:#d92626">(+0.08%)</span></span>
+            <span class="price">$684.32 <span style="color:#d92626">(+0.76%)</span></span>
           </div>
+          <div class="badges"><span class="badge">MA5 683.39</span><span class="badge">MA20 686.58</span><span class="badge">MA60 681.56</span><span class="badge">거래량 20일평균대비 8%</span><span class="badge">볼린저밴드 내 위치 37%</span><span class="badge">일목균형표 구름대 위</span><span class="badge">매물대 $673.41~$677.22</span></div>
           <ul class="news"><li><a href="https://www.investors.com/etfs-and-funds/sectors/sp500-meet-the-2-ceos-paid-less-than-500-a-year/?src=A00220&yptr=yahoo" target="_blank" rel="noopener">연봉 500달러 미만의 S&P 500 CEO 2명을 만나보세요</a></li><li><a href="https://www.fool.com/investing/2026/07/27/if-i-only-had-500-to-invest-this-is-the-etf-id-buy/" target="_blank" rel="noopener">나에게 투자할 돈이 500달러밖에 없다면 지금 당장 사고 싶은 ETF는 이것입니다</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">Invesco QQQ</span>
-            <span class="price">$684.23 <span style="color:#1a63d1">(-1.12%)</span></span>
+            <span class="price">$690.01 <span style="color:#d92626">(+0.84%)</span></span>
           </div>
-          <ul class="news"><li><a href="https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-iran-oil-prices-plunge/?src=A00220&yptr=yahoo" target="_blank" rel="noopener">오늘 주식시장: 다우지수는 미국-이란 희망에 575포인트 상승; 유가 급락 (생중계)</a></li><li><a href="https://finance.yahoo.com/markets/stocks/articles/invesco-qqq-qqq-investing-radar-102002684.html" target="_blank" rel="noopener">Invesco QQQ(QQQ)가 귀하의 투자 레이더에 포함되어야 합니까?</a></li></ul>
+          <div class="badges"><span class="badge">MA5 696.10</span><span class="badge">MA20 710.89</span><span class="badge">MA60 713.26</span><span class="badge">거래량 20일평균대비 6%</span><span class="badge">볼린저밴드 내 위치 13%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 $706.17~$714.01</span></div>
+          <ul class="news"><li><a href="https://finance.yahoo.com/markets/stocks/articles/exchange-traded-funds-equity-futures-130512818.html" target="_blank" rel="noopener">유가 하락으로 상장지수펀드, 주식선물, 벨 프리 월요일 상승</a></li><li><a href="https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-iran-oil-prices-plunge/?src=A00220&yptr=yahoo" target="_blank" rel="noopener">오늘 주식시장: 다우지수는 미국-이란 희망에 575포인트 상승; 유가 급락 (생중계)</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">TYM</span>
             <span class="price">6,460원 <span style="color:#d92626">(+1.10%)</span></span>
           </div>
+          <div class="badges"><span class="badge">MA5 6,360</span><span class="badge">MA20 6,294</span><span class="badge">MA60 6,942</span><span class="badge">거래량 20일평균대비 57%</span><span class="badge">볼린저밴드 내 위치 75%</span><span class="badge">일목균형표 구름대 안</span><span class="badge">매물대 8,804~9,140원</span></div>
           <ul class="news"><li><a href="http://www.newstomato.com/ReadNews.aspx?no=1308356&inflow=N" target="_blank" rel="noopener">골프장서 맞붙는 농기계 양강…전동카트 VS 자율주행 모어</a></li><li><a href="http://www.cctimes.kr/news/articleView.html?idxno=918389" target="_blank" rel="noopener">대전혁신센터, 오픈이노베이션 밋업데이 성료</a></li></ul>
         </div>
         <div class="card">
@@ -76,13 +85,15 @@
             <span class="name">삼성전자</span>
             <span class="price">254,000원 <span style="color:#d92626">(+1.80%)</span></span>
           </div>
-          <ul class="news"><li><a href="https://n.news.naver.com/mnews/article/009/0005713021?sid=101" target="_blank" rel="noopener">애플이 노골적으로 미는 中창신…14조원 장전해 삼전닉스에 도전장</a></li><li><a href="https://www.mediafine.co.kr/news/articleView.html?idxno=84767" target="_blank" rel="noopener">코스피, 장중 2% 급락 딛고 반등-외국인 2.9조 매도에도 6,755선 마감</a></li></ul>
+          <div class="badges"><span class="badge">MA5 258,600</span><span class="badge">MA20 280,525</span><span class="badge">MA60 295,933</span><span class="badge">거래량 20일평균대비 81%</span><span class="badge">볼린저밴드 내 위치 26%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 277,300~291,500원</span></div>
+          <ul class="news"><li><a href="https://www.tokenpost.kr/news/market/381774" target="_blank" rel="noopener">단일종목 레버리지 ETF 규제 강화, 삼성전자·SK하이닉스 쏠림 움직임 제...</a></li><li><a href="https://n.news.naver.com/mnews/article/001/0016217778?sid=104" target="_blank" rel="noopener">中전문가들, CXMT 상장에 "삼전·닉스에 도전하고 시장 재편"(종합)</a></li></ul>
         </div>
         <div class="card">
           <div class="row">
             <span class="name">KODEX 2차전지산업</span>
             <span class="price">13,315원 <span style="color:#d92626">(+0.30%)</span></span>
           </div>
+          <div class="badges"><span class="badge">MA5 13,242</span><span class="badge">MA20 13,700</span><span class="badge">MA60 17,126</span><span class="badge">거래량 20일평균대비 73%</span><span class="badge">볼린저밴드 내 위치 39%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 18,760~19,767원</span></div>
           <ul class="news"><li><a href="https://www.ggilbo.com/news/articleView.html?idxno=1171113" target="_blank" rel="noopener">[주식마감] 국제유가 급등 소식에 SK이터닉스 상한가... 서울식품우, 지...</a></li><li><a href="https://www.newspim.com/news/view/20260723001105" target="_blank" rel="noopener">[ETF 시황] 태양광·2차전지 ETF 수익률 상위 싹쓸이</a></li></ul>
         </div>
         <div class="card">
@@ -90,6 +101,7 @@
             <span class="name">KODEX AI전력핵심설비</span>
             <span class="price">34,930원 <span style="color:#1a63d1">(-0.81%)</span></span>
           </div>
+          <div class="badges"><span class="badge">MA5 35,073</span><span class="badge">MA20 37,326</span><span class="badge">MA60 45,678</span><span class="badge">거래량 20일평균대비 53%</span><span class="badge">볼린저밴드 내 위치 35%</span><span class="badge">일목균형표 구름대 아래</span><span class="badge">매물대 44,617~47,795원</span></div>
           <ul class="news"><li><a href="https://n.news.naver.com/mnews/article/023/0003989724?sid=101" target="_blank" rel="noopener">“성장주 먼저 담고 S&P500 적립식 투자 병행해야”</a></li><li><a href="https://n.news.naver.com/mnews/article/088/0001020498?sid=101" target="_blank" rel="noopener">중동 리스크에 몰린 투심…유틸리티株, '유가 급등' 타고 질주</a></li></ul>
         </div>
 </body>
