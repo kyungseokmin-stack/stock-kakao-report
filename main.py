@@ -1,41 +1,65 @@
 """
-매일 아침 포트폴리오 가격 + 뉴스를 카카오톡 '나에게 보내기'로 전송하는 스크립트.
+매일 아침 관심 종목 시세 + 뉴스를 정리한 공개 웹페이지(GitHub Pages)를 만들고,
+카카오톡 '나에게 보내기'로 그 링크를 담은 짧은 메시지 한 통만 전송하는 스크립트.
 
-필요한 환경변수 (GitHub Actions Secrets 또는 로컬 .env):
-  KAKAO_REST_API_KEY   : 카카오 디벨로퍼스 REST API 키
-  KAKAO_REFRESH_TOKEN  : 최초 1회 수동 발급받은 리프레시 토큰 (README 참고)
-  NAVER_CLIENT_ID      : 네이버 오픈API 클라이언트 ID
-  NAVER_CLIENT_SECRET  : 네이버 오픈API 클라이언트 시크릿
-  GH_PAT (선택)        : 리프레시 토큰이 갱신될 때 GitHub Secret을 자동으로
-                         업데이트하려면 repo 권한이 있는 Personal Access Token 필요
+* 보유 수량 / 평단가 / 수익률 / 증권사명은 공개 페이지에 절대 표시하지 않습니다.
+  (수량/평단가는 PORTFOLIO_JSON 안에는 있지만, 이 스크립트가 웹페이지를 만들 때
+   의도적으로 제외합니다.)
+
+필요한 환경변수 (GitHub Actions Secrets):
+  PORTFOLIO_JSON       : 보유 종목 목록 (JSON 텍스트, README 참고)
+  KAKAO_REST_API_KEY
+  KAKAO_CLIENT_SECRET
+  KAKAO_REFRESH_TOKEN
+  NAVER_CLIENT_ID
+  NAVER_CLIENT_SECRET
+  GH_PAT (선택)        : 리프레시 토큰 자동 갱신용
+  GITHUB_REPOSITORY    : GitHub Actions가 자동으로 넣어줌 (owner/repo)
 """
 
 import os
 import re
 import json
-import time
 import subprocess
 from datetime import datetime, timedelta
 
 import requests
 
-PORTFOLIO_PATH = os.path.join(os.path.dirname(__file__), "portfolio.json")
-KAKAO_TEXT_LIMIT = 190  # 카카오 text 템플릿 200자 제한에 여유를 둠
+REPORT_PATH = os.path.join(os.path.dirname(__file__), "docs", "index.html")
 
 
-# ---------------------------------------------------------------------------
-# 1. 포트폴리오 로드
+# ----------------------------------------------------------------------------
+# 1. 포트폴리오 로드 (파일�v 아니라 Secret에서 읽음 — 저장소에 절대 남짞 않음)
 # ---------------------------------------------------------------------------
 def load_portfolio():
-    with open(PORTFOLIO_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    raw = os.environ["PORTFOLIO_JSN"]
+    return json.loads(raw)
+
+
+def collect_watchlist(portfolio):
+    """모든 계좌의 종목을 중복 없이 하나의 관심종목 목록으로 합침 (계좌 구분 없음)"""
+    seen = set()
+    items = []
+    for account in portfolio.get("accounts", []):
+        for item in account.get("domestic", []):
+            key = ("domestic", item["ticker"])
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append({"name": item["name"], "ticker": item["ticker"], "domestic": True})
+        for item in account.get("overseas", []):
+            key = ("overseas", item["ticker"])
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append({"name": item["name"], "ticker": item["ticker"], "domestic": False})
+    return items
 
 
 # ---------------------------------------------------------------------------
 # 2. 가격 조회
 # ---------------------------------------------------------------------------
 def get_domestic_price(ticker):
-    """pykrx로 최근 종가/전일대비 등락률 조회"""
     from pykrx import stock
 
     today = datetime.now()
@@ -53,7 +77,6 @@ def get_domestic_price(ticker):
 
 
 def get_overseas_price(ticker):
-    """yfinance로 최근 종가/전일대비 등락률 조회"""
     import yfinance as yf
 
     hist = yf.Ticker(ticker).history(period="5d")
@@ -65,7 +88,7 @@ def get_overseas_price(ticker):
     return {"price": last_close, "pct": pct}
 
 
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # 3. 뉴스 조회
 # ---------------------------------------------------------------------------
 def clean_html(text):
@@ -78,12 +101,8 @@ def get_domestic_news(name, display=2):
     client_secret = os.environ.get("NAVER_CLIENT_SECRET")
     if not client_id or not client_secret:
         return []
-
     url = "https://openapi.naver.com/v1/search/news.json"
-    headers = {
-        "X-Naver-Client-Id": client_id,
-        "X-Naver-Client-Secret": client_secret,
-    }
+    headers = {"X-Naver-Client-Id": client_id, "X-Naver-Client-Secret": client_secret}
     params = {"query": name, "display": display, "sort": "date"}
     try:
         res = requests.get(url, headers=headers, params=params, timeout=10)
@@ -91,7 +110,7 @@ def get_domestic_news(name, display=2):
         items = res.json().get("items", [])
         return [clean_html(i["title"]) for i in items]
     except Exception as e:
-        print(f"[뉴스 오류] {name}: {e}")
+        print(f"[뉴스 오롘] {name}: {e}")
         return []
 
 
@@ -107,12 +126,12 @@ def get_overseas_news(ticker, count=2):
                 titles.append(title)
         return titles
     except Exception as e:
-        print(f"[뉴스 오류] {ticker}: {e}")
+        print(f"[뉴스 오롘] {ticker}: {e}")
         return []
 
 
 # ---------------------------------------------------------------------------
-# 4. 카카오 토큰 갱신
+# 4. 카카오토큰 갱신 / 전송
 # ---------------------------------------------------------------------------
 def refresh_kakao_token():
     rest_api_key = os.environ["KAKAO_REST_API_KEY"]
@@ -142,12 +161,10 @@ def refresh_kakao_token():
 
 
 def update_github_secret(name, value):
-    """GH_PAT이 설정돼 있으면 gh CLI로 저장소 Secret을 자동 갱신 (선택 기능)"""
     pat = os.environ.get("GH_PAT")
     repo = os.environ.get("GITHUB_REPOSITORY")
     if not pat or not repo:
-        print("GH_PAT/GITHUB_REPOSITORY 미설정 - 자동 갱신 생략. "
-              "약 2개월 내 refresh token 만료 전 재인증 필요할 수 있음.")
+        print("GH_PAT/GITHUB_REPOSITORY 미설정 - 자동 갱신 생략.")
         return
     try:
         env = os.environ.copy()
@@ -161,30 +178,14 @@ def update_github_secret(name, value):
         print(f"[Secret 갱신 실패] {e}")
 
 
-# ---------------------------------------------------------------------------
-# 5. 카카오 메시지 전송 (200자 제한 -> 여러 통으로 분할)
-# ---------------------------------------------------------------------------
-def chunk_text(lines, limit=KAKAO_TEXT_LIMIT):
-    chunks = []
-    current = ""
-    for line in lines:
-        candidate = (current + "\n" + line) if current else line
-        if len(candidate) > limit:
-            if current:
-                chunks.append(current)
-            current = line
-        else:
-            current = candidate
-    if current:
-        chunks.append(current)
-    return chunks
-
-
 def send_kakao_memo(access_token, text):
     url = "https://kapi.kakao.com/v2/api/talk/memo/default/send"
     headers = {"Authorization": f"Bearer {access_token}"}
-    template = {"object_type": "text", "text": text,
-                "link": {"web_url": "https://finance.naver.com", "mobile_web_url": "https://finance.naver.com"}}
+    template = {
+        "object_type": "text",
+        "text": text,
+        "link": {"web_url": text.splitlines()[-1], "mobile_web_url": text.splitlines()[-1]},
+    }
     data = {"template_object": json.dumps(template)}
     res = requests.post(url, headers=headers, data=data, timeout=10)
     ok = res.json().get("result_code") == 0
@@ -194,78 +195,78 @@ def send_kakao_memo(access_token, text):
 
 
 # ---------------------------------------------------------------------------
-# 6. 메인 로직
+# 5. 공개 페이지 생성 (수량/평단가/증권사명 절대 미포함)
 # ---------------------------------------------------------------------------
-def build_domestic_lines(items):
-    lines = ["[국내]"]
-    for item in items:
-        price_info = get_domestic_price(item["ticker"])
-        if not price_info:
-            lines.append(f"{item['name']}: 가격 조회 실패")
-            continue
-        sign = "+" if price_info["pct"] >= 0 else ""
-        line = f"{item['name']} {price_info['price']:,}원 ({sign}{price_info['pct']:.2f}%)"
-        if item.get("quantity") and item.get("avg_price"):
-            profit_pct = (price_info["price"] - item["avg_price"]) / item["avg_price"] * 100
-            line += f" | 수익률 {profit_pct:+.2f}%"
-        lines.append(line)
-        for news in get_domestic_news(item["name"]):
-            lines.append(f"  - {news}")
-    return lines
+def build_html(watchlist):
+    rows = []
+    for w in watchlist:
+        if w["domestic"]:
+            info = get_domestic_price(w["ticker"])
+            news = get_domestic_news(w["name"])
+            price_str = f"{info['price']:,}원" if info else "조회 실패"
+        else:
+            info = get_overseas_price(w["ticker"])
+            news = get_overseas_news(w["ticker"])
+            price_str = f"${info['price']:.2f}" if info else "조회 실패"
+        pct = info["pct"] if info else 0
+        color = "#d92626" if pct >= 0 else "#1a63d1"
+        sign = "+" if pct >= 0 else ""
+        news_html = "".join(f"<li>{n}</li>" for n in news) or "<li>관련 뉴스 없음</li>"
+        rows.append(f"""
+        <div class="card">
+          <div class="row">
+            <span class="name">{w['name']}</span>
+            <span class="price">{price_str} <span style="color:{color}">({sign}{pct:.2f}%)</span></span>
+          </div>
+          <ul class="news">{news_html}</ul>
+        </div>""")
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    return f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>{today} 아침 브리핑</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#f5f5f7; margin:0; padding:20px; color:#1c1c1e; }}
+  h1 {{ font-size:20px; margin-bottom:4px; }}
+  .updated {{ color:#888; font-size:13px; margin-bottom:20px; }}
+  .card {{ background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }}
+  .row {{ display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom:8px; gap:12px; }}
+  .name {{ font-size:16px; }}
+  .price {{ font-size:15px; white-space:nowrap; }}
+  .news {{ margin:0; padding-left:18px; font-size:13px; color:#555; line-height:1.6; }}
+</style>
+</head>
+<body>
+  <h1>📈 오늘의 관심 종목</h1>
+  <div class="updated">{today} 업데이트 · 시세/뉴스만 표시됩니다</div>
+  {''.join(rows)}
+</body>
+</html>"""
 
 
-def build_overseas_lines(items):
-    lines = ["[해외]"]
-    for item in items:
-        price_info = get_overseas_price(item["ticker"])
-        if not price_info:
-            lines.append(f"{item['name']}: 가격 조회 실패")
-            continue
-        sign = "+" if price_info["pct"] >= 0 else ""
-        line = f"{item['name']} ${price_info['price']:.2f} ({sign}{price_info['pct']:.2f}%)"
-        if item.get("quantity") and item.get("avg_price"):
-            profit_pct = (price_info["price"] - item["avg_price"]) / item["avg_price"] * 100
-            line += f" | 수익률 {profit_pct:+.2f}%"
-        if item.get("daily_buy_krw"):
-            line += f" | 매일 {item['daily_buy_krw']:,}원 자동매수"
-        lines.append(line)
-        for news in get_overseas_news(item["ticker"]):
-            lines.append(f"  - {news}")
-    return lines
-
-
-def build_report_lines(portfolio):
-    lines = [f"📈 {datetime.now().strftime('%Y-%m-%d')} 아침 포트폴리오 브리핑"]
-
-    for account in portfolio.get("accounts", []):
-        broker = account.get("broker", "계좌")
-        lines.append(f"\n■ {broker}")
-
-        domestic = account.get("domestic", [])
-        if domestic:
-            lines.append("")
-            lines.extend(build_domestic_lines(domestic))
-
-        overseas = account.get("overseas", [])
-        if overseas:
-            lines.append("")
-            lines.extend(build_overseas_lines(overseas))
-
-    return lines
-
-
+# ---------------------------------------------------------------------------
+# 6. 메인
+# ---------------------------------------------------------------------------
 def main():
     portfolio = load_portfolio()
-    lines = build_report_lines(portfolio)
-    chunks = chunk_text(lines)
+    watchlist = collect_watchlist(portfolio)
+
+    os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)
+    html = build_html(watchlist)
+    with open(REPORT_PATH, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    owner, repo = os.environ["GITHUB_REPOSITORY"].split("/")
+    pages_url = f"https://{owner}.github.io/{repo}/"
 
     access_token = refresh_kakao_token()
-
-    total = len(chunks)
-    for idx, chunk in enumerate(chunks, start=1):
-        prefix = f"({idx}/{total})\n" if total > 1 else ""
-        send_kakao_memo(access_token, prefix + chunk)
-        time.sleep(1)
+    today = datetime.now().strftime("%Y-%m-%d")
+    text = f"📈 {today} 아침 브리핑이 준비됐어요.\n관심 종목 시세·뉴스 확인하기:\n{pages_url}"
+    send_kakao_memo(access_token, text)
 
     print("완료")
 
