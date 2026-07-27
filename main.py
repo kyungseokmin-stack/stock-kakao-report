@@ -57,35 +57,149 @@ def collect_watchlist(portfolio):
 
 
 # ---------------------------------------------------------------------------
-# 2. 가격 조회
+# 2. 가격 + 기술적 지표 조회
 # ---------------------------------------------------------------------------
+def _bollinger(close, window=20, n_std=2):
+    mid = close.rolling(window).mean().iloc[-1]
+    std = close.rolling(window).std().iloc[-1]
+    upper = mid + n_std * std
+    lower = mid - n_std * std
+    return mid, upper, lower
+
+
+def _ichimoku_cloud_position(high, low, close):
+    """전환선/기준선 기반 구름대 위치 (단순화 버전)"""
+    tenkan = (high.rolling(9).max() + low.rolling(9).min()) / 2
+    kijun = (high.rolling(26).max() + low.rolling(26).min()) / 2
+    span_b = (high.rolling(52).max() + low.rolling(52).min()) / 2
+    if len(close) < 52:
+        return None
+    span_a_now = (tenkan.iloc[-1] + kijun.iloc[-1]) / 2
+    span_b_now = span_b.iloc[-1]
+    cloud_top = max(span_a_now, span_b_now)
+    cloud_bottom = min(span_a_now, span_b_now)
+    last = close.iloc[-1]
+    if last > cloud_top:
+        position = "구름대 위"
+    elif last < cloud_bottom:
+        position = "구름대 아래"
+    else:
+        position = "구름대 안"
+    return {
+        "tenkan": tenkan.iloc[-1],
+        "kijun": kijun.iloc[-1],
+        "position": position,
+    }
+
+
+def _heavy_volume_zone(df, close_col, volume_col, lookback=60, bins=10):
+    """최근 lookback일 동안 거래량이 가장 많이 쌓인 가격대(매물대) 추정"""
+    try:
+        import pandas as pd
+
+        recent = df.tail(lookback)
+        if len(recent) < 10:
+            return None
+        price_bins = pd.cut(recent[close_col], bins=bins)
+        vol_by_bin = recent.groupby(price_bins, observed=True)[volume_col].sum()
+        if vol_by_bin.empty or vol_by_bin.max() == 0:
+            return None
+        top = vol_by_bin.idxmax()
+        return {"low": top.left, "high": top.right}
+    except Exception as e:
+        print(f"[매물대 계산 오류] {e}")
+        return None
+
+
 def get_domestic_price(ticker):
     from pykrx import stock
 
     today = datetime.now()
-    fromdate = (today - timedelta(days=15)).strftime("%Y%m%d")
+    fromdate = (today - timedelta(days=250)).strftime("%Y%m%d")
     todate = today.strftime("%Y%m%d")
 
     df = stock.get_market_ohlcv_by_date(fromdate, todate, ticker)
     df = df[df["종가"] > 0]
     if len(df) < 2:
         return None
-    last_close = int(df["종가"].iloc[-1])
-    prev_close = int(df["종가"].iloc[-2])
+
+    close, high, low, volume = df["종가"], df["고가"], df["저가"], df["거래량"]
+    last_close = int(close.iloc[-1])
+    prev_close = int(close.iloc[-2])
     pct = (last_close - prev_close) / prev_close * 100
-    return {"price": last_close, "pct": pct}
+
+    result = {"price": last_close, "pct": pct}
+
+    result["ma5"] = round(close.rolling(5).mean().iloc[-1]) if len(close) >= 5 else None
+    result["ma20"] = round(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else None
+    result["ma60"] = round(close.rolling(60).mean().iloc[-1]) if len(close) >= 60 else None
+
+    vol_avg20 = volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
+    result["vol_ratio"] = round(volume.iloc[-1] / vol_avg20 * 100) if vol_avg20 else None
+
+    if len(close) >= 20:
+        mid, upper, lower = _bollinger(close)
+        result["bb_upper"] = round(upper)
+        result["bb_lower"] = round(lower)
+        result["bb_pos"] = round((last_close - lower) / (upper - lower) * 100) if upper != lower else 50
+
+    ichimoku = _ichimoku_cloud_position(high, low, close)
+    if ichimoku:
+        result["cloud_position"] = ichimoku["position"]
+
+    zone = _heavy_volume_zone(df, "종가", "거래량")
+    if zone:
+        result["heavy_zone"] = f"{int(zone['low']):,}~{int(zone['high']):,}원"
+
+    try:
+        trade_df = stock.get_market_trading_value_by_date(fromdate, todate, ticker)
+        if "외국인합계" in trade_df.columns:
+            result["foreign_5d"] = int(trade_df["외국인합계"].tail(5).sum())
+        if "기관합계" in trade_df.columns:
+            result["inst_5d"] = int(trade_df["기관합계"].tail(5).sum())
+    except Exception as e:
+        print(f"[외국인/기관 순매수 조회 오류] {ticker}: {e}")
+
+    return result
 
 
 def get_overseas_price(ticker):
     import yfinance as yf
 
-    hist = yf.Ticker(ticker).history(period="5d")
+    hist = yf.Ticker(ticker).history(period="250d")
     if hist.empty or len(hist) < 2:
         return None
-    last_close = float(hist["Close"].iloc[-1])
-    prev_close = float(hist["Close"].iloc[-2])
+
+    close, high, low, volume = hist["Close"], hist["High"], hist["Low"], hist["Volume"]
+    last_close = float(close.iloc[-1])
+    prev_close = float(close.iloc[-2])
     pct = (last_close - prev_close) / prev_close * 100
-    return {"price": last_close, "pct": pct}
+
+    result = {"price": last_close, "pct": pct}
+
+    result["ma5"] = round(close.rolling(5).mean().iloc[-1], 2) if len(close) >= 5 else None
+    result["ma20"] = round(close.rolling(20).mean().iloc[-1], 2) if len(close) >= 20 else None
+    result["ma60"] = round(close.rolling(60).mean().iloc[-1], 2) if len(close) >= 60 else None
+
+    vol_avg20 = volume.rolling(20).mean().iloc[-1] if len(volume) >= 20 else None
+    result["vol_ratio"] = round(volume.iloc[-1] / vol_avg20 * 100) if vol_avg20 else None
+
+    if len(close) >= 20:
+        mid, upper, lower = _bollinger(close)
+        result["bb_upper"] = round(upper, 2)
+        result["bb_lower"] = round(lower, 2)
+        result["bb_pos"] = round((last_close - lower) / (upper - lower) * 100) if upper != lower else 50
+
+    ichimoku = _ichimoku_cloud_position(high, low, close)
+    if ichimoku:
+        result["cloud_position"] = ichimoku["position"]
+
+    zone = _heavy_volume_zone(hist, "Close", "Volume")
+    if zone:
+        result["heavy_zone"] = f"${zone['low']:.2f}~${zone['high']:.2f}"
+
+    # 외국인/기관 순매수는 해외 주식은 무료 공개 API로 구할 수 없어 생략
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -224,22 +338,56 @@ def build_html(watchlist):
             info = get_domestic_price(w["ticker"])
             news = get_domestic_news(w["name"])
             price_str = f"{info['price']:,}원" if info else "조회 실패"
+            unit = "원"
         else:
             info = get_overseas_price(w["ticker"])
             news = get_overseas_news(w["ticker"])
             price_str = f"${info['price']:.2f}" if info else "조회 실패"
+            unit = "$"
         pct = info["pct"] if info else 0
         color = "#d92626" if pct >= 0 else "#1a63d1"
         sign = "+" if pct >= 0 else ""
         news_html = "".join(
             f'<li><a href="{n["url"]}" target="_blank" rel="noopener">{n["title"]}</a></li>' for n in news
         ) or "<li>관련 뉴스 없음</li>"
+
+        badges = []
+        if info:
+            def fmt(v):
+                return f"{v:,.2f}" if unit == "$" else f"{v:,.0f}"
+
+            if info.get("ma5") is not None:
+                badges.append(f"MA5 {fmt(info['ma5'])}")
+            if info.get("ma20") is not None:
+                badges.append(f"MA20 {fmt(info['ma20'])}")
+            if info.get("ma60") is not None:
+                badges.append(f"MA60 {fmt(info['ma60'])}")
+            if info.get("vol_ratio") is not None:
+                badges.append(f"거래량 20일평균대비 {info['vol_ratio']}%")
+            if info.get("bb_pos") is not None:
+                badges.append(f"볼린저밴드 내 위치 {info['bb_pos']}%")
+            if info.get("cloud_position"):
+                badges.append(f"일목균형표 {info['cloud_position']}")
+            if info.get("heavy_zone"):
+                badges.append(f"매물대 {info['heavy_zone']}")
+            if info.get("foreign_5d") is not None:
+                v = info["foreign_5d"] / 1e8
+                sign_f = "+" if v >= 0 else ""
+                badges.append(f"외국인 5일 순매수 {sign_f}{v:,.1f}억원")
+            if info.get("inst_5d") is not None:
+                v = info["inst_5d"] / 1e8
+                sign_i = "+" if v >= 0 else ""
+                badges.append(f"기관 5일 순매수 {sign_i}{v:,.1f}억원")
+
+        badges_html = "".join(f'<span class="badge">{b}</span>' for b in badges)
+
         rows.append(f"""
         <div class="card">
           <div class="row">
             <span class="name">{w['name']}</span>
             <span class="price">{price_str} <span style="color:{color}">({sign}{pct:.2f}%)</span></span>
           </div>
+          <div class="badges">{badges_html}</div>
           <ul class="news">{news_html}</ul>
         </div>""")
 
@@ -259,6 +407,8 @@ def build_html(watchlist):
   .row {{ display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom:8px; gap:12px; }}
   .name {{ font-size:16px; }}
   .price {{ font-size:15px; white-space:nowrap; }}
+  .badges {{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }}
+  .badge {{ background:#f0f0f3; color:#444; font-size:11px; padding:4px 8px; border-radius:20px; white-space:nowrap; }}
   .news {{ margin:0; padding-left:18px; font-size:13px; color:#555; line-height:1.6; }}
   .news a {{ color:#555; text-decoration:none; }}
   .news a:hover {{ text-decoration:underline; }}
@@ -266,7 +416,7 @@ def build_html(watchlist):
 </head>
 <body>
   <h1>📈 오늘의 관심 종목</h1>
-  <div class="updated">{today} 업데이트 · 시세/뉴스만 표시됩니다</div>
+  <div class="updated">{today} 업데이트 · 시세/지표/뉴스만 표시됩니다 (매매 조언 아님)</div>
   {''.join(rows)}
 </body>
 </html>"""

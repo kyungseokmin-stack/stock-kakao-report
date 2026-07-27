@@ -2,3 +2,4 @@ pykrx
 yfinance
 requests
 deep-translator
+pandas
