@@ -111,6 +111,216 @@ def _heavy_volume_zone(df, close_col, volume_col, lookback=60, bins=10):
         return None
 
 
+# ---------------------------------------------------------------------------
+# 2-1. 규칙 기반 관찰 알림 엔진
+#      * 매수/매도 신호가 아니라 "이런 차트 조건이 충족됐다"는 사실만 표시합니다.
+#      * 새 규칙을 추가하려면 아래 ALERT_RULES 리스트에 함수만 더하면 됩니다.
+#        각 규칙 함수는 (close, volume) 시계열(pandas Series)을 받아
+#        조건 충족 시 {"label": ..., "detail": ...} 딕셔너리를, 아니면 None을 반환합니다.
+# ---------------------------------------------------------------------------
+import pandas as pd
+
+
+def rule_volume_surge_at_lower_band(close, volume):
+    """오늘 거래량이 최근 3일 평균의 2배 이상 + 전일 종가가 볼린저밴드 하단 이하"""
+    if len(close) < 22 or len(volume) < 4:
+        return None
+    mid = close.rolling(20).mean()
+    std = close.rolling(20).std()
+    lower = mid - 2 * std
+
+    vol_avg3 = volume.iloc[-4:-1].mean()  # 오늘을 제외한 최근 3일 평균
+    vol_today = volume.iloc[-1]
+    prev_close = close.iloc[-2]
+    prev_lower = lower.iloc[-2]
+
+    if vol_avg3 <= 0 or pd.isna(prev_lower):
+        return None
+
+    vol_ratio = vol_today / vol_avg3
+    if vol_ratio >= 2 and prev_close <= prev_lower:
+        return {
+            "label": "상승 모니터링",
+            "detail": f"거래량이 최근 3일 평균의 {vol_ratio:.1f}배 + 전일 볼린저밴드 하단 터치",
+        }
+    return None
+
+
+def rule_volume_surge_at_upper_band(close, volume):
+    """오늘 거래량이 최근 3일 평균의 2배 이상 + 전일 종가가 볼린저밴드 상단 이상"""
+    if len(close) < 22 or len(volume) < 4:
+        return None
+    mid = close.rolling(20).mean()
+    std = close.rolling(20).std()
+    upper = mid + 2 * std
+
+    vol_avg3 = volume.iloc[-4:-1].mean()
+    vol_today = volume.iloc[-1]
+    prev_close = close.iloc[-2]
+    prev_upper = upper.iloc[-2]
+
+    if vol_avg3 <= 0 or pd.isna(prev_upper):
+        return None
+
+    vol_ratio = vol_today / vol_avg3
+    if vol_ratio >= 2 and prev_close >= prev_upper:
+        return {
+            "label": "과열 모니터링",
+            "detail": f"거래량이 최근 3일 평균의 {vol_ratio:.1f}배 + 전일 볼린저밴드 상단 터치",
+        }
+    return None
+
+
+def _rsi(close, period=14):
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+    rs = avg_gain / avg_loss.replace(0, pd.NA)
+    rsi = 100 - (100 / (1 + rs))
+    # avg_loss가 0인데 avg_gain > 0이면 (계속 상승만) RSI = 100
+    rsi = rsi.where(~((avg_loss == 0) & (avg_gain > 0)), 100)
+    # avg_gain, avg_loss 둘 다 0이면 (변동 없음) RSI = 50
+    rsi = rsi.where(~((avg_loss == 0) & (avg_gain == 0)), 50)
+    return rsi
+
+
+def _macd(close, fast=12, slow=26, signal=9):
+    ema_fast = close.ewm(span=fast, adjust=False).mean()
+    ema_slow = close.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    return macd_line, signal_line
+
+
+def _cross_signal(short_ma, long_ma):
+    """short_ma가 long_ma를 어제→오늘 사이 상향(1)/하향(-1) 돌파했는지, 아니면 0"""
+    if len(short_ma) < 2 or pd.isna(short_ma.iloc[-2]) or pd.isna(long_ma.iloc[-2]):
+        return 0
+    prev_diff = short_ma.iloc[-2] - long_ma.iloc[-2]
+    today_diff = short_ma.iloc[-1] - long_ma.iloc[-1]
+    if pd.isna(prev_diff) or pd.isna(today_diff):
+        return 0
+    if prev_diff <= 0 and today_diff > 0:
+        return 1
+    if prev_diff >= 0 and today_diff < 0:
+        return -1
+    return 0
+
+
+def rule_golden_cross_short(close, volume):
+    """5일 이동평균이 20일 이동평균을 상향 돌파 (단기 골든크로스)"""
+    if len(close) < 21:
+        return None
+    signal = _cross_signal(close.rolling(5).mean(), close.rolling(20).mean())
+    if signal == 1:
+        return {"label": "골든크로스(단기)", "detail": "5일 이동평균이 20일 이동평균을 상향 돌파"}
+    return None
+
+
+def rule_dead_cross_short(close, volume):
+    """5일 이동평균이 20일 이동평균을 하향 돌파 (단기 데드크로스)"""
+    if len(close) < 21:
+        return None
+    signal = _cross_signal(close.rolling(5).mean(), close.rolling(20).mean())
+    if signal == -1:
+        return {"label": "데드크로스(단기)", "detail": "5일 이동평균이 20일 이동평균을 하향 돌파"}
+    return None
+
+
+def rule_golden_cross_mid(close, volume):
+    """20일 이동평균이 60일 이동평균을 상향 돌파 (중기 골든크로스)"""
+    if len(close) < 61:
+        return None
+    signal = _cross_signal(close.rolling(20).mean(), close.rolling(60).mean())
+    if signal == 1:
+        return {"label": "골든크로스(중기)", "detail": "20일 이동평균이 60일 이동평균을 상향 돌파"}
+    return None
+
+
+def rule_dead_cross_mid(close, volume):
+    """20일 이동평균이 60일 이동평균을 하향 돌파 (중기 데드크로스)"""
+    if len(close) < 61:
+        return None
+    signal = _cross_signal(close.rolling(20).mean(), close.rolling(60).mean())
+    if signal == -1:
+        return {"label": "데드크로스(중기)", "detail": "20일 이동평균이 60일 이동평균을 하향 돌파"}
+    return None
+
+
+def rule_rsi_overbought(close, volume):
+    """RSI(14)가 70 이상 (과매수 구간)"""
+    if len(close) < 15:
+        return None
+    val = _rsi(close).iloc[-1]
+    if pd.isna(val):
+        return None
+    if val >= 70:
+        return {"label": "과매수 모니터링", "detail": f"RSI(14) {float(val):.1f} (70 이상)"}
+    return None
+
+
+def rule_rsi_oversold(close, volume):
+    """RSI(14)가 30 이하 (과매도 구간)"""
+    if len(close) < 15:
+        return None
+    val = _rsi(close).iloc[-1]
+    if pd.isna(val):
+        return None
+    if val <= 30:
+        return {"label": "과매도 모니터링", "detail": f"RSI(14) {float(val):.1f} (30 이하)"}
+    return None
+
+
+def rule_macd_golden_cross(close, volume):
+    """MACD선이 시그널선을 상향 돌파"""
+    if len(close) < 35:
+        return None
+    macd_line, signal_line = _macd(close)
+    signal = _cross_signal(macd_line, signal_line)
+    if signal == 1:
+        return {"label": "MACD 골든크로스", "detail": "MACD선이 시그널선을 상향 돌파"}
+    return None
+
+
+def rule_macd_dead_cross(close, volume):
+    """MACD선이 시그널선을 하향 돌파"""
+    if len(close) < 35:
+        return None
+    macd_line, signal_line = _macd(close)
+    signal = _cross_signal(macd_line, signal_line)
+    if signal == -1:
+        return {"label": "MACD 데드크로스", "detail": "MACD선이 시그널선을 하향 돌파"}
+    return None
+
+
+ALERT_RULES = [
+    rule_volume_surge_at_lower_band,
+    rule_volume_surge_at_upper_band,
+    rule_golden_cross_short,
+    rule_dead_cross_short,
+    rule_golden_cross_mid,
+    rule_dead_cross_mid,
+    rule_rsi_overbought,
+    rule_rsi_oversold,
+    rule_macd_golden_cross,
+    rule_macd_dead_cross,
+]
+
+
+def check_alerts(close, volume):
+    alerts = []
+    for rule in ALERT_RULES:
+        try:
+            result = rule(close, volume)
+            if result:
+                alerts.append(result)
+        except Exception as e:
+            print(f"[알림 규칙 오류] {rule.__name__}: {e}")
+    return alerts
+
+
 def get_domestic_price(ticker):
     from pykrx import stock
 
@@ -150,6 +360,8 @@ def get_domestic_price(ticker):
     zone = _heavy_volume_zone(df, "종가", "거래량")
     if zone:
         result["heavy_zone"] = f"{int(zone['low']):,}~{int(zone['high']):,}원"
+
+    result["alerts"] = check_alerts(close, volume)
 
     try:
         trade_df = stock.get_market_trading_value_by_date(fromdate, todate, ticker)
@@ -197,6 +409,8 @@ def get_overseas_price(ticker):
     zone = _heavy_volume_zone(hist, "Close", "Volume")
     if zone:
         result["heavy_zone"] = f"${zone['low']:.2f}~${zone['high']:.2f}"
+
+    result["alerts"] = check_alerts(close, volume)
 
     # 외국인/기관 순매수는 해외 주식은 무료 공개 API로 구할 수 없어 생략
     return result
@@ -333,6 +547,7 @@ def send_kakao_memo(access_token, text):
 # ---------------------------------------------------------------------------
 def build_html(watchlist):
     rows = []
+    total_alerts = 0
     for w in watchlist:
         if w["domestic"]:
             info = get_domestic_price(w["ticker"])
@@ -381,18 +596,25 @@ def build_html(watchlist):
 
         badges_html = "".join(f'<span class="badge">{b}</span>' for b in badges)
 
+        alerts = info.get("alerts", []) if info else []
+        total_alerts += len(alerts)
+        alerts_html = "".join(
+            f'<div class="alert"><b>🔔 {a["label"]}</b><span>{a["detail"]}</span></div>' for a in alerts
+        )
+
         rows.append(f"""
         <div class="card">
           <div class="row">
             <span class="name">{w['name']}</span>
             <span class="price">{price_str} <span style="color:{color}">({sign}{pct:.2f}%)</span></span>
           </div>
+          {alerts_html}
           <div class="badges">{badges_html}</div>
           <ul class="news">{news_html}</ul>
         </div>""")
 
     today = datetime.now().strftime("%Y-%m-%d")
-    return f"""<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -409,6 +631,7 @@ def build_html(watchlist):
   .price {{ font-size:15px; white-space:nowrap; }}
   .badges {{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }}
   .badge {{ background:#f0f0f3; color:#444; font-size:11px; padding:4px 8px; border-radius:20px; white-space:nowrap; }}
+  .alert {{ background:#fff4e5; border:1px solid #ffcc80; border-radius:8px; padding:8px 10px; margin-bottom:10px; font-size:12px; color:#8a5300; display:flex; flex-direction:column; gap:2px; }}
   .news {{ margin:0; padding-left:18px; font-size:13px; color:#555; line-height:1.6; }}
   .news a {{ color:#555; text-decoration:none; }}
   .news a:hover {{ text-decoration:underline; }}
@@ -420,6 +643,7 @@ def build_html(watchlist):
   {''.join(rows)}
 </body>
 </html>"""
+    return html, total_alerts
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +654,7 @@ def main():
     watchlist = collect_watchlist(portfolio)
 
     os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)
-    html = build_html(watchlist)
+    html, total_alerts = build_html(watchlist)
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -439,7 +663,8 @@ def main():
 
     access_token = refresh_kakao_token()
     today = datetime.now().strftime("%Y-%m-%d")
-    text = f"📈 {today} 아침 브리핑이 준비됐어요.\n관심 종목 시세·뉴스 확인하기:\n{pages_url}"
+    alert_note = f"\n🔔 관찰 알림 {total_alerts}건 발생" if total_alerts else ""
+    text = f"📈 {today} 아침 브리핑이 준비됐어요.{alert_note}\n관심 종목 시세·뉴스 확인하기:\n{pages_url}"
     send_kakao_memo(access_token, text)
 
     print("완료")
