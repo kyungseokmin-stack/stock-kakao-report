@@ -467,7 +467,7 @@ def translate_to_korean(text):
             print(f"[번역 오류] 비정상 응답 감지(시도 {attempt + 1}/2): {str(result)[:60]}")
         except Exception as e:
             print(f"[번역 오류] 시도 {attempt + 1}/2 실패: {e}")
-        time.sleep(2)
+        time.sleep(4)
 
     return text
 
@@ -489,6 +489,7 @@ def get_overseas_news(ticker, count=2):
             )
             if title:
                 results.append({"title": translate_to_korean(title), "url": url})
+                time.sleep(1.5)
         return results
     except Exception as e:
         print(f"[뉴스 오류] {ticker}: {e}")
