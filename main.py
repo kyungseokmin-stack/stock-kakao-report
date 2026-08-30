@@ -20,6 +20,7 @@
 import os
 import re
 import json
+import time
 import subprocess
 from datetime import datetime, timedelta
 
@@ -446,13 +447,29 @@ def get_domestic_news(name, display=2):
 
 
 def translate_to_korean(text):
-    """영문 뉴스 제목을 한글로 번역 (실패 시 원문 그대로 반환)"""
-    try:
-        from deep_translator import GoogleTranslator
-        return GoogleTranslator(source="auto", target="ko").translate(text)
-    except Exception as e:
-        print(f"[번역 오류] {e}")
-        return text
+    """영문 뉴스 제목을 한글로 번역 (실패/오류페이지 응답 시 원문 그대로 반환)"""
+    from deep_translator import GoogleTranslator
+
+    def looks_valid(result):
+        if not result:
+            return False
+        has_korean = any("\uac00" <= ch <= "\ud7a3" for ch in result)
+        error_markers = ["Error 500", "That's an error", "Please try again later"]
+        if any(marker in result for marker in error_markers):
+            return False
+        return has_korean
+
+    for attempt in range(2):
+        try:
+            result = GoogleTranslator(source="auto", target="ko").translate(text)
+            if looks_valid(result):
+                return result
+            print(f"[번역 오류] 비정상 응답 감지(시도 {attempt + 1}/2): {str(result)[:60]}")
+        except Exception as e:
+            print(f"[번역 오류] 시도 {attempt + 1}/2 실패: {e}")
+        time.sleep(2)
+
+    return text
 
 
 def get_overseas_news(ticker, count=2):
